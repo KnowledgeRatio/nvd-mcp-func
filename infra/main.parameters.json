@@ -16,6 +16,9 @@
     },
     "nvdApiKey": {
       "value": "${NVD_API_KEY}"
+    },
+    "resourceGroupName": {
+      "value": "${AZURE_RESOURCE_GROUP_NAME}"
     }
   }
 }
