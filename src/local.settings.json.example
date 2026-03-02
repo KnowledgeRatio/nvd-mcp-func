@@ -1,0 +1,9 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "PYTHON_ISOLATE_WORKER_DEPENDENCIES": "1",
+    "NVD_API_KEY": "<your-nvd-api-key-or-leave-empty>"
+  }
+}

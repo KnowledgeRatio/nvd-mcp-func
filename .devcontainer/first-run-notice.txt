@@ -1,0 +1,29 @@
+👋 Welcome to the NVD MCP Server Codespace!
+
+To run the MCP server locally:
+
+1. Start Azurite (already running in the background via postCreateCommand)
+
+2. Create a virtual environment and install dependencies:
+```
+cd src
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+3. Copy the settings template:
+```
+cp local.settings.json.example local.settings.json
+```
+   Optionally add your NVD API key to local.settings.json.
+   Get a free key at: https://nvd.nist.gov/developers/request-an-api-key
+
+4. Start the function app:
+```
+func start
+```
+
+The MCP server will be available at: http://localhost:7071/runtime/webhooks/mcp
+
+📚 Azure Functions docs: https://learn.microsoft.com/azure/azure-functions/
+📚 NVD API docs: https://nvd.nist.gov/developers/vulnerabilities
