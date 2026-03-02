@@ -9,9 +9,8 @@ RUN sudo mv -f /tmp/staging/first-run-notice.txt /usr/local/etc/vscode-dev-conta
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - \
     && sudo apt-get install -y nodejs
 
-# Install Azure Functions Core Tools
-# Preview with aarch64 support
-RUN sudo npm install -g azure-functions-core-tools
+# Install Azure Functions Core Tools v4
+RUN sudo npm install -g azure-functions-core-tools@4
 
 # Install MCP Inspector
 RUN sudo npm install -g @modelcontextprotocol/inspector

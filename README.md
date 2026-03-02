@@ -28,13 +28,54 @@ The NVD API key is **optional** — the server works without one at a lower rate
 | `get_cve` | Retrieve full details for a specific CVE (CVSS scores, affected configurations, references) |
 | `get_cve_history` | Get the change history for CVEs, filterable by date range and event type |
 
+## Quickstart — GitHub Codespaces (zero local install)
+
+The repo includes a pre-configured dev container that has all tools installed automatically (Python, azd, az, func, Node, Azurite, MCP Inspector).
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/KnowledgeRatio/nvd-mcp-func)
+
+Or open locally in VS Code:
+
+1. Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. Clone the repo and open it in VS Code
+3. When prompted, click **Reopen in Container**
+
+Everything in the [Run locally](#run-locally) and [Deploy to Azure](#deploy-to-azure) sections will work inside the container without installing anything on your machine.
+
+---
+
 ## Prerequisites
 
 - [Python](https://www.python.org/downloads/) 3.11 or higher
 - [Azure Functions Core Tools](https://learn.microsoft.com/azure/azure-functions/functions-run-local) >= `4.0.7030`
 - [Azure Developer CLI (`azd`)](https://aka.ms/azd)
+- [Azure CLI (`az`)](https://learn.microsoft.com/cli/azure/install-azure-cli)
 - [Node.js](https://nodejs.org/) (for Azurite local storage emulator)
 - VS Code + [Azure Functions extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azurefunctions) (optional)
+
+### Installing prerequisites on macOS
+
+The easiest way is via [Homebrew](https://brew.sh/):
+
+```shell
+# Install Homebrew if you don't have it
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install tools
+brew install azure-developer-cli
+brew install azure-cli
+brew tap azure/functions
+brew install azure-functions-core-tools@4
+brew install node
+```
+
+### Installing prerequisites on Windows
+
+```shell
+winget install Microsoft.Azd
+winget install Microsoft.AzureCLI
+npm install -g azure-functions-core-tools@4 --unsafe-perm true
+```
 
 ## Run locally
 
@@ -112,13 +153,34 @@ Set transport to `Streamable HTTP`, URL to `http://localhost:7071/runtime/webhoo
 
 ## Deploy to Azure
 
-### 1. Create an azd environment
+### 1. Log in to Azure
+
+```shell
+azd auth login
+```
+
+### 2. Create an azd environment
 
 ```shell
 azd env new <your-environment-name>
 ```
 
-### 2. (Optional) Set your NVD API key
+### 3. Set required environment variables
+
+```shell
+# Required: choose a supported region (see infra/main.bicep for the full allowed list)
+azd env set AZURE_LOCATION <region>   # e.g. uksouth, swedencentral, eastus
+
+# Required: set to true to deploy with VNet + private endpoints, false for public access
+azd env set VNET_ENABLED false
+```
+
+> **Multiple subscriptions?** If your account has more than one subscription, also run:
+> ```shell
+> azd env set AZURE_SUBSCRIPTION_ID <your-subscription-id>
+> ```
+
+### 4. (Optional) Set your NVD API key
 
 ```shell
 azd env set NVD_API_KEY <your-key>
@@ -126,7 +188,7 @@ azd env set NVD_API_KEY <your-key>
 
 If you skip this step, the server deploys and works unauthenticated. You can add the key later.
 
-### 3. Deploy
+### 5. Deploy
 
 ```shell
 azd up
@@ -139,7 +201,7 @@ This provisions a resource group containing:
 - Application Insights + Log Analytics workspace
 - User-assigned managed identity
 
-### 4. Connect to the remote MCP server
+### 6. Connect to the remote MCP server
 
 Get the system key for your deployed endpoint:
 
