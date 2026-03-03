@@ -17,6 +17,12 @@
     "nvdApiKey": {
       "value": "${NVD_API_KEY}"
     },
+    "entraAppClientId": {
+      "value": "${ENTRA_APP_CLIENT_ID}"
+    },
+    "mcpUnauthenticated": {
+      "value": "${MCP_UNAUTHENTICATED_ACCESS}"
+    },
     "resourceGroupName": {
       "value": "${AZURE_RESOURCE_GROUP_NAME}"
     }

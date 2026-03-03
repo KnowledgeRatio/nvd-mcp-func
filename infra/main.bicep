@@ -51,6 +51,10 @@ param vnetEnabled bool
 @secure()
 @description('NVD API Key. Obtain a free key at https://nvd.nist.gov/developers/request-an-api-key and set it before deploying via: azd env set NVD_API_KEY <your-key>. Leave empty to run unauthenticated (rate-limited to 5 req/30s).')
 param nvdApiKey string = ''
+@description('Client ID of the Entra app registration used for EasyAuth. Set automatically by the preprovision hook when ENTRA_AUTH_ENABLED=true. Leave empty to use key-based auth (default).')
+param entraAppClientId string = ''
+@description('Set to "true" to disable MCP key-based auth without enabling EasyAuth. WARNING: makes the MCP endpoint publicly accessible. Use only for public read-only data in dev environments.')
+param mcpUnauthenticated string = ''
 param apiServiceName string = ''
 param apiUserAssignedIdentityName string = ''
 param applicationInsightsName string = ''
@@ -70,6 +74,20 @@ var keyVaultName = '${abbrs.keyVaultVaults}${take(resourceToken, 20)}'
 // Inject a Key Vault reference into app settings only when a key was provided —
 // a reference to a non-existent secret causes Function App startup failures.
 var nvdApiKeyAppSetting = !empty(nvdApiKey) ? { NVD_API_KEY: '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=NVD-API-KEY)' } : {}
+
+// MCP extension webhook auth level:
+//   - Key-based (default): not set (extension uses System key by default)
+//   - Entra or OAuth passthrough: 'Anonymous' (EasyAuth is the gate)
+//   - Unauthenticated: 'Anonymous' (no EasyAuth — public access, dev only)
+var mcpWebhookAuthAnonymous = !empty(entraAppClientId) || mcpUnauthenticated == 'true'
+var mcpAuthSettings = mcpWebhookAuthAnonymous ? {
+  AzureFunctionsJobHost__extensions__mcp__system__webhookAuthorizationLevel: 'Anonymous'
+} : {}
+
+// Protected Resource Metadata scope — required for EasyAuth MCP auth protocol handshake
+var prmScopeSettings = !empty(entraAppClientId) ? {
+  WEBSITE_AUTH_PRM_DEFAULT_WITH_SCOPES: 'api://${entraAppClientId}/user_impersonation'
+} : {}
 var deploymentStorageContainerName = 'app-package-${take(functionAppName, 32)}-${take(toLower(uniqueString(functionAppName, resourceToken)), 7)}'
 
 // Organize resources in a resource group
@@ -125,7 +143,14 @@ module api './app/api.bicep' = {
     deploymentStorageContainerName: deploymentStorageContainerName
     identityId: apiUserAssignedIdentity.outputs.resourceId
     identityClientId: apiUserAssignedIdentity.outputs.clientId
-    appSettings: union({ PYTHON_ISOLATE_WORKER_DEPENDENCIES: '1' }, nvdApiKeyAppSetting)
+    appSettings: union(
+      { PYTHON_ISOLATE_WORKER_DEPENDENCIES: '1' },
+      nvdApiKeyAppSetting,
+      mcpAuthSettings,
+      prmScopeSettings
+    )
+    publicNetworkAccess: vnetEnabled ? 'Disabled' : 'Enabled'
+    entraAppClientId: entraAppClientId
     virtualNetworkSubnetId: vnetEnabled ? serviceVirtualNetwork.outputs.appSubnetID : ''
   }
 }
@@ -141,6 +166,7 @@ module keyVault './app/keyvault.bicep' = {
     managedIdentityPrincipalId: apiUserAssignedIdentity.outputs.principalId
     userIdentityPrincipalId: principalId
     allowUserIdentityPrincipal: storageEndpointConfig.allowUserIdentityPrincipal
+    vnetEnabled: vnetEnabled
   }
 }
 
@@ -221,6 +247,32 @@ module storagePrivateEndpoint 'app/storage-PrivateEndpoint.bicep' = if (vnetEnab
   }
 }
 
+// Inbound private endpoint for the Function App — locks down public access when VNet is enabled
+module functionAppPrivateEndpoint 'app/functionapp-PrivateEndpoint.bicep' = if (vnetEnabled) {
+  name: 'functionAppPrivateEndpoint'
+  scope: rg
+  params: {
+    location: location
+    tags: tags
+    virtualNetworkName: !empty(vNetName) ? vNetName : '${abbrs.networkVirtualNetworks}${resourceToken}'
+    subnetName: vnetEnabled ? serviceVirtualNetwork.outputs.peSubnetName : ''
+    functionAppName: functionAppName
+  }
+}
+
+// Inbound private endpoint for Key Vault — locks down public access when VNet is enabled
+module keyvaultPrivateEndpoint 'app/keyvault-PrivateEndpoint.bicep' = if (vnetEnabled) {
+  name: 'keyvaultPrivateEndpoint'
+  scope: rg
+  params: {
+    location: location
+    tags: tags
+    virtualNetworkName: !empty(vNetName) ? vNetName : '${abbrs.networkVirtualNetworks}${resourceToken}'
+    subnetName: vnetEnabled ? serviceVirtualNetwork.outputs.peSubnetName : ''
+    keyVaultName: keyVaultName
+  }
+}
+
 // Monitor application with Azure Monitor - Log Analytics and Application Insights
 module logAnalytics 'br/public:avm/res/operational-insights/workspace:0.11.1' = {
   name: '${uniqueString(deployment().name, location)}-loganalytics'
@@ -253,3 +305,9 @@ output SERVICE_API_NAME string = api.outputs.SERVICE_API_NAME
 output AZURE_FUNCTION_NAME string = api.outputs.SERVICE_API_NAME
 output AZURE_KEY_VAULT_NAME string = keyVault.outputs.keyVaultName
 output AZURE_KEY_VAULT_URI string = keyVault.outputs.keyVaultUri
+
+// MCP connection details — use these when configuring Foundry agent tool connections
+output MCP_ENDPOINT string = 'https://${api.outputs.SERVICE_API_NAME}.azurewebsites.net/runtime/webhooks/mcp'
+// Entra auth outputs — populated only when ENTRA_AUTH_ENABLED=true
+output ENTRA_APPLICATION_ID_URI string = !empty(entraAppClientId) ? 'api://${entraAppClientId}' : ''
+output ENTRA_OAUTH_SCOPE string = !empty(entraAppClientId) ? 'api://${entraAppClientId}/user_impersonation' : ''

@@ -19,6 +19,8 @@ param enableBlob bool = true
 param enableQueue bool = false
 param enableTable bool = false
 param enableFile bool = false
+param publicNetworkAccess string = 'Enabled'
+param entraAppClientId string = ''
 
 @allowed(['SystemAssigned', 'UserAssigned'])
 param identityType string = 'UserAssigned'
@@ -107,3 +109,57 @@ module api 'br/public:avm/res/web/site:0.15.1' = {
 output SERVICE_API_NAME string = api.outputs.name
 // Ensure output is always string, handle potential null from module output if SystemAssigned is not used
 output SERVICE_API_IDENTITY_PRINCIPAL_ID string = identityType == 'SystemAssigned' ? api.outputs.?systemAssignedMIPrincipalId ?? '' : ''
+
+// Reference the deployed Function App to apply settings not exposed by the AVM module
+resource existingApp 'Microsoft.Web/sites@2022-03-01' existing = {
+  name: name
+}
+
+// Enforce HTTPS-only and control public network access (e.g. Disabled when behind private endpoint)
+resource siteProperties 'Microsoft.Web/sites/config@2022-03-01' = {
+  name: 'web'
+  parent: existingApp
+  properties: {
+    httpsOnly: true
+    publicNetworkAccess: publicNetworkAccess
+  }
+}
+
+// Configure EasyAuth (App Service Authentication) with Microsoft Entra when an app registration is provided.
+// Enables Project Managed Identity and OAuth identity passthrough auth modes for Foundry agents.
+// When empty, key-based auth remains the default (no EasyAuth configured).
+resource authSettings 'Microsoft.Web/sites/config@2022-03-01' = if (!empty(entraAppClientId)) {
+  name: 'authsettingsV2'
+  parent: existingApp
+  properties: {
+    globalValidation: {
+      requireAuthentication: true
+      unauthenticatedClientAction: 'Return401'
+    }
+    identityProviders: {
+      azureActiveDirectory: {
+        enabled: true
+        registration: {
+          clientId: entraAppClientId
+          openIdIssuer: 'https://sts.windows.net/${tenant().tenantId}/v2.0'
+        }
+        validation: {
+          allowedAudiences: [
+            'api://${entraAppClientId}'
+          ]
+          // Pre-authorize the Function App's own managed identity as an allowed client
+          // (used for CI/CD testing and for Foundry Project MI attachment)
+          allowedClientApplications: [
+            identityClientId
+          ]
+        }
+      }
+    }
+    httpSettings: {
+      requireHttps: true
+      routes: {
+        apiPrefix: '/.auth'
+      }
+    }
+  }
+}

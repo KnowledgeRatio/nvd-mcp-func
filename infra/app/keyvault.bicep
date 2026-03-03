@@ -6,6 +6,8 @@ param managedIdentityPrincipalId string
 @description('Principal ID of the deploying user. Used to grant Secrets Officer access for managing secrets post-deployment.')
 param userIdentityPrincipalId string = ''
 param allowUserIdentityPrincipal bool = false
+@description('When true, disables public network access to the Key Vault. Use when deploying with VNet and private endpoints.')
+param vnetEnabled bool = false
 
 @secure()
 @description('NVD API Key to store as a Key Vault secret. Leave empty to skip secret creation.')
@@ -28,8 +30,8 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     tenantId: subscription().tenantId
     enableRbacAuthorization: true   // Use RBAC rather than legacy access policies
     enableSoftDelete: true
-    softDeleteRetentionInDays: 7
-    publicNetworkAccess: 'Enabled'
+    softDeleteRetentionInDays: 30
+    publicNetworkAccess: vnetEnabled ? 'Disabled' : 'Enabled'
   }
 }
 

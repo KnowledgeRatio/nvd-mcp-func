@@ -1,5 +1,6 @@
 import json
 import logging
+import urllib.error
 
 import azure.functions as func
 from nvd_service import NVDService
@@ -54,9 +55,15 @@ def search_cves(
             start_index=start_index,
         )
         return json.dumps(result)
+    except urllib.error.HTTPError as e:
+        logging.error(f"search_cves NVD API error: {e.code} {e.reason}")
+        return json.dumps({"error": "CVE database request failed", "status": e.code})
+    except urllib.error.URLError as e:
+        logging.error(f"search_cves NVD API unreachable: {e.reason}")
+        return json.dumps({"error": "CVE database unreachable"})
     except Exception as e:
-        logging.error(f"search_cves failed: {e}")
-        return json.dumps({"error": str(e)})
+        logging.exception("search_cves unexpected error")
+        return json.dumps({"error": "Internal error"})
 
 
 @app.mcp_tool()
@@ -67,9 +74,15 @@ def get_cve(cve_id: str) -> str:
     try:
         result = nvd_service.get_cve(cve_id)
         return json.dumps(result)
+    except urllib.error.HTTPError as e:
+        logging.error(f"get_cve NVD API error: {e.code} {e.reason}")
+        return json.dumps({"error": "CVE database request failed", "status": e.code})
+    except urllib.error.URLError as e:
+        logging.error(f"get_cve NVD API unreachable: {e.reason}")
+        return json.dumps({"error": "CVE database unreachable"})
     except Exception as e:
-        logging.error(f"get_cve failed: {e}")
-        return json.dumps({"error": str(e)})
+        logging.exception("get_cve unexpected error")
+        return json.dumps({"error": "Internal error"})
 
 
 @app.mcp_tool()
@@ -99,6 +112,12 @@ def get_cve_history(
             start_index=start_index,
         )
         return json.dumps(result)
+    except urllib.error.HTTPError as e:
+        logging.error(f"get_cve_history NVD API error: {e.code} {e.reason}")
+        return json.dumps({"error": "CVE database request failed", "status": e.code})
+    except urllib.error.URLError as e:
+        logging.error(f"get_cve_history NVD API unreachable: {e.reason}")
+        return json.dumps({"error": "CVE database unreachable"})
     except Exception as e:
-        logging.error(f"get_cve_history failed: {e}")
-        return json.dumps({"error": str(e)})
+        logging.exception("get_cve_history unexpected error")
+        return json.dumps({"error": "Internal error"})
