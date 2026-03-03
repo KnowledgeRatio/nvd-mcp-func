@@ -25,6 +25,30 @@
     },
     "resourceGroupName": {
       "value": "${AZURE_RESOURCE_GROUP_NAME}"
+    },
+    "apiServiceName": {
+      "value": "${AZURE_FUNCTION_APP_NAME}"
+    },
+    "appServicePlanName": {
+      "value": "${AZURE_APP_SERVICE_PLAN_NAME}"
+    },
+    "keyVaultCustomName": {
+      "value": "${AZURE_KEY_VAULT_NAME}"
+    },
+    "storageAccountName": {
+      "value": "${AZURE_STORAGE_ACCOUNT_NAME}"
+    },
+    "logAnalyticsName": {
+      "value": "${AZURE_LOG_ANALYTICS_NAME}"
+    },
+    "applicationInsightsName": {
+      "value": "${AZURE_APP_INSIGHTS_NAME}"
+    },
+    "vNetName": {
+      "value": "${AZURE_VNET_NAME}"
+    },
+    "apiUserAssignedIdentityName": {
+      "value": "${AZURE_IDENTITY_NAME}"
     }
   }
 }

@@ -110,9 +110,11 @@ output SERVICE_API_NAME string = api.outputs.name
 // Ensure output is always string, handle potential null from module output if SystemAssigned is not used
 output SERVICE_API_IDENTITY_PRINCIPAL_ID string = identityType == 'SystemAssigned' ? api.outputs.?systemAssignedMIPrincipalId ?? '' : ''
 
-// Reference the deployed Function App to apply settings not exposed by the AVM module
+// Reference the deployed Function App to apply settings not exposed by the AVM module.
+// Using api.outputs.name (rather than the raw param) creates an implicit ARM dependency
+// on the module completing, preventing a race condition on fresh deployments.
 resource existingApp 'Microsoft.Web/sites@2022-03-01' existing = {
-  name: name
+  name: api.outputs.name
 }
 
 // Enforce HTTPS-only and control public network access (e.g. Disabled when behind private endpoint)
@@ -147,11 +149,10 @@ resource authSettings 'Microsoft.Web/sites/config@2022-03-01' = if (!empty(entra
           allowedAudiences: [
             'api://${entraAppClientId}'
           ]
-          // Pre-authorize the Function App's own managed identity as an allowed client
-          // (used for CI/CD testing and for Foundry Project MI attachment)
-          allowedClientApplications: [
-            identityClientId
-          ]
+          // No allowedClientApplications restriction — any service principal that obtains
+          // a valid token for the audience (e.g. Foundry Agent ID managed identities)
+          // is permitted. Access is controlled via app role assignments on the Entra
+          // app registration.
         }
       }
     }

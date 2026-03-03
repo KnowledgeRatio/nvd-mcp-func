@@ -29,6 +29,13 @@ if ($env:ENTRA_AUTH_ENABLED -ne 'true') {
 
 Write-Host "ENTRA_AUTH_ENABLED=true — setting up Entra app registration..."
 
+# Ensure az CLI is authenticated — reuse existing session or prompt for login
+$accountCheck = az account show 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Azure CLI not authenticated. Logging in..."
+    az login --use-device-code
+}
+
 $displayName = "nvd-mcp-$env:AZURE_ENV_NAME"
 $idUri = "api://nvd-mcp-$env:AZURE_ENV_NAME"
 
@@ -43,7 +50,6 @@ if (![string]::IsNullOrWhiteSpace($existing)) {
     Write-Host "Creating new Entra app registration: $displayName"
     $appId = az ad app create `
         --display-name $displayName `
-        --identifier-uris $idUri `
         --query appId -o tsv
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to create Entra app registration."
@@ -52,17 +58,37 @@ if (![string]::IsNullOrWhiteSpace($existing)) {
     $appId = $appId.Trim()
     Write-Host "Created app registration: $appId"
 
-    # Expose the user_impersonation scope (required for OAuth identity passthrough)
+    # Set identifier URI to api://{appId} — always valid per tenant policy
+    $idUri = "api://$appId"
+    az ad app update --id $appId --identifier-uris $idUri | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Could not set identifier URI — set manually if needed."
+    }
+
+    # Expose user_impersonation scope (OAuth identity passthrough)
+    # and MCP.Access app role (Entra Agent ID / application permissions)
     $scopeId = [guid]::NewGuid().ToString()
+    $roleId  = [guid]::NewGuid().ToString()
+
     $scopeJson = @"
 {"oauth2PermissionScopes":[{"id":"$scopeId","value":"user_impersonation","type":"User","adminConsentDisplayName":"Access NVD MCP Server","adminConsentDescription":"Allows the application to access the NVD MCP Server on behalf of the signed-in user.","userConsentDisplayName":"Access NVD MCP Server","userConsentDescription":"Allow this application to access the NVD MCP Server on your behalf.","isEnabled":true}]}
 "@
     az ad app update --id $appId --set "api=$scopeJson" | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Could not set user_impersonation scope — OAuth passthrough may not work."
-        Write-Warning "You can set it manually in the Azure Portal under App Registration -> Expose an API."
     } else {
         Write-Host "Exposed user_impersonation scope on app registration."
+    }
+
+    # Add MCP.Access app role for Entra Agent ID (application permissions)
+    $roleJson = @"
+[{"id":"$roleId","value":"MCP.Access","displayName":"Access NVD MCP Server","description":"Allows an application (e.g. an Azure AI Foundry agent) to call the NVD MCP Server using its own identity.","allowedMemberTypes":["Application"],"isEnabled":true}]
+"@
+    az ad app update --id $appId --app-roles $roleJson | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Could not add MCP.Access app role — Agent ID auth may not work."
+    } else {
+        Write-Host "Added MCP.Access app role for Agent ID authentication."
     }
 }
 

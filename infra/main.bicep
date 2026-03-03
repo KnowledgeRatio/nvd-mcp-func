@@ -63,6 +63,7 @@ param logAnalyticsName string = ''
 param resourceGroupName string = ''
 param storageAccountName string = ''
 param vNetName string = ''
+param keyVaultCustomName string = ''
 @description('Id of the user identity to be used for testing and debugging. This is not required in production. Leave empty if not needed.')
 param principalId string = deployer().objectId
 
@@ -70,7 +71,7 @@ var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
 var functionAppName = !empty(apiServiceName) ? apiServiceName : '${abbrs.webSitesFunctions}api-${resourceToken}'
-var keyVaultName = '${abbrs.keyVaultVaults}${take(resourceToken, 20)}'
+var keyVaultName = !empty(keyVaultCustomName) ? keyVaultCustomName : '${abbrs.keyVaultVaults}${take(resourceToken, 20)}'
 // Inject a Key Vault reference into app settings only when a key was provided —
 // a reference to a non-existent secret causes Function App startup failures.
 var nvdApiKeyAppSetting = !empty(nvdApiKey) ? { NVD_API_KEY: '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=NVD-API-KEY)' } : {}
