@@ -111,18 +111,18 @@ output SERVICE_API_NAME string = api.outputs.name
 output SERVICE_API_IDENTITY_PRINCIPAL_ID string = identityType == 'SystemAssigned' ? api.outputs.?systemAssignedMIPrincipalId ?? '' : ''
 
 // Reference the deployed Function App to apply settings not exposed by the AVM module.
-// Using api.outputs.name (rather than the raw param) creates an implicit ARM dependency
-// on the module completing, preventing a race condition on fresh deployments.
+// existingApp uses the name param (known at deployment start); explicit dependsOn on the
+// api module prevents a race condition — ARM won't apply child configs until the site exists.
 resource existingApp 'Microsoft.Web/sites@2022-03-01' existing = {
-  name: api.outputs.name
+  name: name
 }
 
 // Enforce HTTPS-only and control public network access (e.g. Disabled when behind private endpoint)
 resource siteProperties 'Microsoft.Web/sites/config@2022-03-01' = {
   name: 'web'
   parent: existingApp
+  dependsOn: [api]
   properties: {
-    httpsOnly: true
     publicNetworkAccess: publicNetworkAccess
   }
 }
@@ -133,6 +133,7 @@ resource siteProperties 'Microsoft.Web/sites/config@2022-03-01' = {
 resource authSettings 'Microsoft.Web/sites/config@2022-03-01' = if (!empty(entraAppClientId)) {
   name: 'authsettingsV2'
   parent: existingApp
+  dependsOn: [api]
   properties: {
     globalValidation: {
       requireAuthentication: true

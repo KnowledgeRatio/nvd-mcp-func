@@ -312,3 +312,5 @@ output MCP_ENDPOINT string = 'https://${api.outputs.SERVICE_API_NAME}.azurewebsi
 // Entra auth outputs — populated only when ENTRA_AUTH_ENABLED=true
 output ENTRA_APPLICATION_ID_URI string = !empty(entraAppClientId) ? 'api://${entraAppClientId}' : ''
 output ENTRA_OAUTH_SCOPE string = !empty(entraAppClientId) ? 'api://${entraAppClientId}/user_impersonation' : ''
+// Foundry Network Injection — use this subnet ID in the Foundry Standard Agent network injection settings
+output FOUNDRY_DELEGATED_SUBNET_ID string = vnetEnabled ? serviceVirtualNetwork.outputs.foundrySubnetID : ''

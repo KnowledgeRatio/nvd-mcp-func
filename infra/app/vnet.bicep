@@ -10,6 +10,9 @@ param peSubnetName string = 'private-endpoints-subnet'
 @description('Specifies the name of the subnet for Function App virtual network integration.')
 param appSubnetName string = 'app'
 
+@description('Specifies the name of the subnet delegated to Azure AI Foundry for network injection.')
+param foundrySubnetName string = 'foundry'
+
 param tags object = {}
 
 // Migrated to use AVM module instead of direct resource declaration
@@ -38,6 +41,13 @@ module virtualNetwork 'br/public:avm/res/network/virtual-network:0.6.1' = {
         privateLinkServiceNetworkPolicies: 'Enabled'
         delegation: 'Microsoft.App/environments'
       }
+      {
+        name: foundrySubnetName
+        addressPrefix: '10.0.3.0/24'
+        privateEndpointNetworkPolicies: 'Disabled'
+        privateLinkServiceNetworkPolicies: 'Enabled'
+        delegation: 'Microsoft.MachineLearningServices/workspaces'
+      }
     ]
   }
 }
@@ -46,3 +56,5 @@ output peSubnetName string = peSubnetName
 output peSubnetID string = '${virtualNetwork.outputs.resourceId}/subnets/${peSubnetName}'
 output appSubnetName string = appSubnetName
 output appSubnetID string = '${virtualNetwork.outputs.resourceId}/subnets/${appSubnetName}'
+output foundrySubnetName string = foundrySubnetName
+output foundrySubnetID string = '${virtualNetwork.outputs.resourceId}/subnets/${foundrySubnetName}'
