@@ -1,7 +1,9 @@
-"""NVD (National Vulnerability Database) API client service."""
+﻿"""NVD (National Vulnerability Database) API client service."""
 import json
 import logging
 import os
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, Optional
@@ -14,7 +16,7 @@ class NVDService:
     """
     Client for the NVD REST APIs v2.0.
 
-    An API key is optional but recommended — unauthenticated requests are
+    An API key is optional but recommended - unauthenticated requests are
     limited to 5 per 30-second window; authenticated requests allow 50.
     Obtain a free key at https://nvd.nist.gov/developers/request-an-api-key
     and set it as the NVD_API_KEY environment variable.
@@ -22,22 +24,103 @@ class NVDService:
 
     def __init__(self) -> None:
         self._api_key: Optional[str] = os.environ.get("NVD_API_KEY") or None
+        self._timeout_seconds = self._parse_positive_float(
+            os.environ.get("NVD_HTTP_TIMEOUT_SECONDS"),
+            default_value=15.0,
+        )
+        self._max_retries = self._parse_positive_int(
+            os.environ.get("NVD_HTTP_MAX_RETRIES"),
+            default_value=3,
+        )
+
         if self._api_key:
             logging.info("NVDService: authenticated mode (API key present)")
         else:
-            logging.info("NVDService: unauthenticated mode (no API key — rate limited to 5 req/30s)")
+            logging.info("NVDService: unauthenticated mode (no API key - rate limited to 5 req/30s)")
+
+        logging.info(
+            "NVDService: request timeout=%ss max_retries=%s",
+            self._timeout_seconds,
+            self._max_retries,
+        )
+
+    @staticmethod
+    def _parse_positive_float(raw_value: Optional[str], default_value: float) -> float:
+        if raw_value is None:
+            return default_value
+        try:
+            parsed_value = float(raw_value)
+            if parsed_value > 0:
+                return parsed_value
+        except ValueError:
+            pass
+        return default_value
+
+    @staticmethod
+    def _parse_positive_int(raw_value: Optional[str], default_value: int) -> int:
+        if raw_value is None:
+            return default_value
+        try:
+            parsed_value = int(raw_value)
+            if parsed_value >= 1:
+                return parsed_value
+        except ValueError:
+            pass
+        return default_value
+
+    @staticmethod
+    def _retry_delay(attempt: int, retry_after_raw: Optional[str] = None) -> float:
+        if retry_after_raw:
+            try:
+                retry_after = float(retry_after_raw)
+                if retry_after >= 0:
+                    return min(retry_after, 30.0)
+            except ValueError:
+                pass
+        return min(0.5 * (2**attempt), 10.0)
 
     def _get(self, url: str, params: Dict[str, str]) -> Dict[str, Any]:
         """Build URL, attach auth header if available, and execute GET request."""
         query = urllib.parse.urlencode(params)
         full_url = f"{url}?{query}" if query else url
 
-        req = urllib.request.Request(full_url)
-        if self._api_key:
-            req.add_header("apiKey", self._api_key)
+        for attempt in range(self._max_retries):
+            req = urllib.request.Request(full_url)
+            if self._api_key:
+                req.add_header("apiKey", self._api_key)
 
-        with urllib.request.urlopen(req) as response:
-            return json.loads(response.read().decode("utf-8"))
+            try:
+                with urllib.request.urlopen(req, timeout=self._timeout_seconds) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                is_last_attempt = attempt >= self._max_retries - 1
+                is_retryable = exc.code in {429, 500, 502, 503, 504}
+                if is_last_attempt or not is_retryable:
+                    raise
+                retry_after_raw = exc.headers.get("Retry-After") if exc.headers else None
+                delay = self._retry_delay(attempt, retry_after_raw)
+                logging.warning(
+                    "NVDService._get transient HTTP %s. retry=%s/%s delay=%ss",
+                    exc.code,
+                    attempt + 1,
+                    self._max_retries,
+                    delay,
+                )
+                time.sleep(delay)
+            except urllib.error.URLError as exc:
+                if attempt >= self._max_retries - 1:
+                    raise
+                delay = self._retry_delay(attempt)
+                logging.warning(
+                    "NVDService._get transient network error %r. retry=%s/%s delay=%ss",
+                    exc.reason,
+                    attempt + 1,
+                    self._max_retries,
+                    delay,
+                )
+                time.sleep(delay)
+
+        raise RuntimeError("NVDService._get exhausted retries unexpectedly")
 
     def search_cves(
         self,

@@ -45,6 +45,7 @@ if ($LASTEXITCODE -ne 0) { $existing = $null }
 
 if (![string]::IsNullOrWhiteSpace($existing)) {
     $appId = $existing.Trim()
+    $idUri = "api://$appId"
     Write-Host "Reusing existing Entra app registration: $appId"
 } else {
     Write-Host "Creating new Entra app registration: $displayName"

@@ -2,7 +2,7 @@ param name string
 @description('Primary location for all resources & Flex Consumption Function App')
 param location string = resourceGroup().location
 param tags object = {}
-param applicationInsightsName string = ''
+param applicationInsightsName string
 param appServicePlanId string
 param appSettings object = {}
 param runtimeName string 
@@ -59,7 +59,7 @@ resource stg 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {
   name: storageAccountName
 }
 
-resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = if (!empty(applicationInsightsName)) {
+resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: applicationInsightsName
 }
 
@@ -144,7 +144,7 @@ resource authSettings 'Microsoft.Web/sites/config@2022-03-01' = if (!empty(entra
         enabled: true
         registration: {
           clientId: entraAppClientId
-          openIdIssuer: 'https://sts.windows.net/${tenant().tenantId}/v2.0'
+          openIdIssuer: '${environment().authentication.loginEndpoint}${tenant().tenantId}/v2.0'
         }
         validation: {
           allowedAudiences: [

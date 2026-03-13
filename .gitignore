@@ -180,4 +180,17 @@ __queuestorage__/
 
 # Node artifacts (root level)
 package-lock.json
-.azure
+
+# Azure Developer CLI / Azure CLI local state (contains environment data, logs, telemetry)
+.azure/
+.azure-config/
+
+# Local Azurite workspace folder
+.azurite/
+
+# Local PowerShell module analysis cache
+Microsoft/
+
+# Bicep build outputs (generated from *.bicep)
+infra/main.json
+infra/app/*.json

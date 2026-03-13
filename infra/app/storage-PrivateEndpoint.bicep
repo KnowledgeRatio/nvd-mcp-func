@@ -47,7 +47,7 @@ module blobPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' =
       privateDnsZoneGroupConfigs: [
         {
           name: 'storageBlobARecord'
-          privateDnsZoneResourceId: enableBlob ? privateDnsZoneBlobDeployment.outputs.resourceId : ''
+          privateDnsZoneResourceId: privateDnsZoneBlobDeployment!.outputs.resourceId
         }
       ]
     }
@@ -80,7 +80,7 @@ module queuePrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' 
       privateDnsZoneGroupConfigs: [
         {
           name: 'storageQueueARecord'
-          privateDnsZoneResourceId: enableQueue ? privateDnsZoneQueueDeployment.outputs.resourceId : ''
+          privateDnsZoneResourceId: privateDnsZoneQueueDeployment!.outputs.resourceId
         }
       ]
     }
@@ -113,7 +113,7 @@ module tablePrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' 
       privateDnsZoneGroupConfigs: [
         {
           name: 'storageTableARecord'
-          privateDnsZoneResourceId: enableTable ? privateDnsZoneTableDeployment.outputs.resourceId : ''
+          privateDnsZoneResourceId: privateDnsZoneTableDeployment!.outputs.resourceId
         }
       ]
     }

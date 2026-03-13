@@ -152,7 +152,7 @@ module api './app/api.bicep' = {
     )
     publicNetworkAccess: vnetEnabled ? 'Disabled' : 'Enabled'
     entraAppClientId: entraAppClientId
-    virtualNetworkSubnetId: vnetEnabled ? serviceVirtualNetwork.outputs.appSubnetID : ''
+    virtualNetworkSubnetId: vnetEnabled ? serviceVirtualNetwork!.outputs.appSubnetID : ''
   }
 }
 
@@ -203,7 +203,7 @@ var storageEndpointConfig = {
   enableQueue: true  // Required for Durable Functions and MCP trigger
   enableTable: false  // Required for Durable Functions and OpenAI triggers and bindings
   enableFiles: false   // Not required, used in legacy scenarios
-  allowUserIdentityPrincipal: true   // Allow interactive user identity to access for testing and debugging
+  allowUserIdentityPrincipal: false  // Keep deployer principal unassigned by default; opt in only for debug scenarios
 }
 
 // Consolidated Role Assignments
@@ -240,7 +240,7 @@ module storagePrivateEndpoint 'app/storage-PrivateEndpoint.bicep' = if (vnetEnab
     location: location
     tags: tags
     virtualNetworkName: !empty(vNetName) ? vNetName : '${abbrs.networkVirtualNetworks}${resourceToken}'
-    subnetName: vnetEnabled ? serviceVirtualNetwork.outputs.peSubnetName : '' // Keep conditional check for safety, though module won't run if !vnetEnabled
+    subnetName: serviceVirtualNetwork!.outputs.peSubnetName
     resourceName: storage.outputs.name
     enableBlob: storageEndpointConfig.enableBlob
     enableQueue: storageEndpointConfig.enableQueue
@@ -256,7 +256,7 @@ module functionAppPrivateEndpoint 'app/functionapp-PrivateEndpoint.bicep' = if (
     location: location
     tags: tags
     virtualNetworkName: !empty(vNetName) ? vNetName : '${abbrs.networkVirtualNetworks}${resourceToken}'
-    subnetName: vnetEnabled ? serviceVirtualNetwork.outputs.peSubnetName : ''
+    subnetName: serviceVirtualNetwork!.outputs.peSubnetName
     functionAppName: functionAppName
   }
 }
@@ -269,7 +269,7 @@ module keyvaultPrivateEndpoint 'app/keyvault-PrivateEndpoint.bicep' = if (vnetEn
     location: location
     tags: tags
     virtualNetworkName: !empty(vNetName) ? vNetName : '${abbrs.networkVirtualNetworks}${resourceToken}'
-    subnetName: vnetEnabled ? serviceVirtualNetwork.outputs.peSubnetName : ''
+    subnetName: serviceVirtualNetwork!.outputs.peSubnetName
     keyVaultName: keyVaultName
   }
 }
@@ -313,4 +313,4 @@ output MCP_ENDPOINT string = 'https://${api.outputs.SERVICE_API_NAME}.azurewebsi
 output ENTRA_APPLICATION_ID_URI string = !empty(entraAppClientId) ? 'api://${entraAppClientId}' : ''
 output ENTRA_OAUTH_SCOPE string = !empty(entraAppClientId) ? 'api://${entraAppClientId}/user_impersonation' : ''
 // Foundry Network Injection — use this subnet ID in the Foundry Standard Agent network injection settings
-output FOUNDRY_DELEGATED_SUBNET_ID string = vnetEnabled ? serviceVirtualNetwork.outputs.foundrySubnetID : ''
+output FOUNDRY_DELEGATED_SUBNET_ID string = vnetEnabled ? serviceVirtualNetwork!.outputs.foundrySubnetID : ''
