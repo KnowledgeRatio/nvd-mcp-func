@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional
 
 _NVD_CVE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 _NVD_HISTORY_URL = "https://services.nvd.nist.gov/rest/json/cvehistory/2.0"
+_NVD_CPE_URL = "https://services.nvd.nist.gov/rest/json/cpes/2.0"
+_CISA_KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 
 
 class NVDService:
@@ -176,6 +178,59 @@ class NVDService:
         """Fetch a single CVE record by its identifier."""
         logging.info(f"NVDService.get_cve: cveId={cve_id}")
         return self._get(_NVD_CVE_URL, {"cveId": cve_id})
+
+    def search_cpes(
+        self,
+        keyword: Optional[str] = None,
+        cpe_match_string: Optional[str] = None,
+        results_per_page: int = 20,
+        start_index: int = 0,
+    ) -> Dict[str, Any]:
+        """Search the NVD CPE dictionary for product entries."""
+        params: Dict[str, str] = {}
+
+        if keyword:
+            params["keywordSearch"] = keyword
+        if cpe_match_string:
+            params["cpeMatchString"] = cpe_match_string
+
+        params["resultsPerPage"] = str(min(max(1, results_per_page), 10000))
+        params["startIndex"] = str(max(0, start_index))
+
+        logging.info(f"NVDService.search_cpes: params={params}")
+        return self._get(_NVD_CPE_URL, params)
+
+    def get_kev(self) -> Dict[str, Any]:
+        """Fetch the CISA Known Exploited Vulnerabilities catalog."""
+        logging.info("NVDService.get_kev: fetching CISA KEV catalog")
+
+        for attempt in range(self._max_retries):
+            req = urllib.request.Request(_CISA_KEV_URL)
+            try:
+                with urllib.request.urlopen(req, timeout=self._timeout_seconds) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                is_last_attempt = attempt >= self._max_retries - 1
+                is_retryable = exc.code in {429, 500, 502, 503, 504}
+                if is_last_attempt or not is_retryable:
+                    raise
+                delay = self._retry_delay(attempt)
+                logging.warning(
+                    "NVDService.get_kev transient HTTP %s. retry=%s/%s delay=%ss",
+                    exc.code, attempt + 1, self._max_retries, delay,
+                )
+                time.sleep(delay)
+            except urllib.error.URLError as exc:
+                if attempt >= self._max_retries - 1:
+                    raise
+                delay = self._retry_delay(attempt)
+                logging.warning(
+                    "NVDService.get_kev transient network error %r. retry=%s/%s delay=%ss",
+                    exc.reason, attempt + 1, self._max_retries, delay,
+                )
+                time.sleep(delay)
+
+        raise RuntimeError("NVDService.get_kev exhausted retries unexpectedly")
 
     def get_cve_history(
         self,

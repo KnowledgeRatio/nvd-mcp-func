@@ -26,7 +26,11 @@ The NVD API key is **optional** â€” the server works without one at a lower
 |---|---|
 | `search_cves` | Search the CVE database by keyword, severity, CWE, CPE, date ranges, KEV membership, and more |
 | `get_cve` | Retrieve full details for a specific CVE (CVSS scores, affected configurations, references) |
-| `get_cve_history` | Get the change history for CVEs, filterable by date range and event type |
+| `get_cve_history` | Get the NVD change history for CVE records — shows when scores, status, or analysis were updated |
+| `search_cves_by_cpe` | Find all CVEs affecting a specific product by its CPE 2.3 name |
+| `get_recent_cves` | Get CVEs published in the last N days, optionally filtered by severity or KEV status |
+| `search_cpes` | Search for CPE product entries by name — use this to find the exact CPE URI for other tools |
+| `get_kev` | Fetch the CISA Known Exploited Vulnerabilities catalog live, with keyword/date/ransomware filtering |
 
 ## Quickstart â€” GitHub Codespaces (zero local install)
 
@@ -299,15 +303,17 @@ azd down
 
 | File | Purpose |
 |---|---|
-| [src/function_app.py](src/function_app.py) | MCP tool definitions (`search_cves`, `get_cve`, `get_cve_history`) |
-| [src/nvd_service.py](src/nvd_service.py) | NVD REST API client |
+| [src/function_app.py](src/function_app.py) | MCP tool definitions (`search_cves`, `get_cve`, `get_cve_history`, `search_cves_by_cpe`, `get_recent_cves`, `search_cpes`, `get_kev`) |
+| [src/nvd_service.py](src/nvd_service.py) | NVD REST API client and CISA KEV catalog fetcher |
 | [infra/main.bicep](infra/main.bicep) | Azure infrastructure (Functions, Key Vault, Storage, Monitoring) |
 | [infra/app/keyvault.bicep](infra/app/keyvault.bicep) | Key Vault resource and RBAC role assignments |
 
 ## NVD API reference
 
-- [CVE API](https://nvd.nist.gov/developers/vulnerabilities) â€” `GET /cves/2.0`
-- [CVE History API](https://nvd.nist.gov/developers/vulnerabilities) â€” `GET /cvehistory/2.0`
+- [CVE API](https://nvd.nist.gov/developers/vulnerabilities) — `GET /cves/2.0`
+- [CVE History API](https://nvd.nist.gov/developers/vulnerabilities) — `GET /cvehistory/2.0`
+- [CPE API](https://nvd.nist.gov/developers/products) — `GET /cpes/2.0`
 - [Request an API key](https://nvd.nist.gov/developers/request-an-api-key)
+- [CISA KEV Catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) — live JSON feed
 
 

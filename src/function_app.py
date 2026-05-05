@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 import urllib.error
@@ -120,4 +121,159 @@ def get_cve_history(
         return json.dumps({"error": "CVE database unreachable"})
     except Exception as e:
         logging.exception("get_cve_history unexpected error")
+        return json.dumps({"error": "Internal error"})
+
+
+@app.mcp_tool()
+@app.mcp_tool_property(arg_name="cpe_name", description="CPE 2.3 name to filter CVEs associated with a specific product (e.g. cpe:2.3:a:apache:log4j:2.14.1:*:*:*:*:*:*:*).")
+@app.mcp_tool_property(arg_name="results_per_page", description="Number of results to return per page (1–2000). Defaults to 20.", is_required=False)
+@app.mcp_tool_property(arg_name="start_index", description="Zero-based index of the first result to return, used for pagination. Defaults to 0.", is_required=False)
+def search_cves_by_cpe(
+    cpe_name: str,
+    results_per_page: int = 20,
+    start_index: int = 0,
+) -> str:
+    """Find all CVEs that affect a specific product using its CPE 2.3 name. Use search_cpes first to find the exact CPE URI."""
+    logging.info(f"search_cves_by_cpe called: cpe_name={cpe_name!r}")
+    try:
+        result = nvd_service.search_cves(
+            cpe_name=cpe_name,
+            results_per_page=results_per_page,
+            start_index=start_index,
+        )
+        return json.dumps(result)
+    except urllib.error.HTTPError as e:
+        logging.error(f"search_cves_by_cpe NVD API error: {e.code} {e.reason}")
+        return json.dumps({"error": "CVE database request failed", "status": e.code})
+    except urllib.error.URLError as e:
+        logging.error(f"search_cves_by_cpe NVD API unreachable: {e.reason}")
+        return json.dumps({"error": "CVE database unreachable"})
+    except Exception as e:
+        logging.exception("search_cves_by_cpe unexpected error")
+        return json.dumps({"error": "Internal error"})
+
+
+@app.mcp_tool()
+@app.mcp_tool_property(arg_name="days", description="How many days back to look (default 7, max 120).", is_required=False)
+@app.mcp_tool_property(arg_name="cvss_v3_severity", description="Filter by CVSS v3 severity level: LOW, MEDIUM, HIGH, or CRITICAL.", is_required=False)
+@app.mcp_tool_property(arg_name="has_kev", description="When true, return only CVEs that appear in the CISA Known Exploited Vulnerabilities (KEV) catalog.", is_required=False)
+@app.mcp_tool_property(arg_name="results_per_page", description="Number of results to return per page (1–2000). Defaults to 20.", is_required=False)
+@app.mcp_tool_property(arg_name="start_index", description="Zero-based index of the first result to return, used for pagination. Defaults to 0.", is_required=False)
+def get_recent_cves(
+    days: int = 7,
+    cvss_v3_severity: str = "",
+    has_kev: bool = False,
+    results_per_page: int = 20,
+    start_index: int = 0,
+) -> str:
+    """Get CVEs published in the last N days, optionally filtered by severity or CISA KEV status."""
+    logging.info(f"get_recent_cves called: days={days} severity={cvss_v3_severity!r} has_kev={has_kev}")
+    try:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        past = now - datetime.timedelta(days=max(1, min(days, 120)))
+        fmt = lambda d: d.strftime("%Y-%m-%dT%H:%M:%S.000")
+        result = nvd_service.search_cves(
+            pub_start_date=fmt(past),
+            pub_end_date=fmt(now),
+            cvss_v3_severity=cvss_v3_severity or None,
+            has_kev=has_kev,
+            results_per_page=results_per_page,
+            start_index=start_index,
+        )
+        return json.dumps(result)
+    except urllib.error.HTTPError as e:
+        logging.error(f"get_recent_cves NVD API error: {e.code} {e.reason}")
+        return json.dumps({"error": "CVE database request failed", "status": e.code})
+    except urllib.error.URLError as e:
+        logging.error(f"get_recent_cves NVD API unreachable: {e.reason}")
+        return json.dumps({"error": "CVE database unreachable"})
+    except Exception as e:
+        logging.exception("get_recent_cves unexpected error")
+        return json.dumps({"error": "Internal error"})
+
+
+@app.mcp_tool()
+@app.mcp_tool_property(arg_name="keyword", description="Product name or vendor keyword to search for (e.g. 'apache tomcat' or 'openssl').", is_required=False)
+@app.mcp_tool_property(arg_name="cpe_match_string", description="Partial CPE 2.3 string to match against (e.g. cpe:2.3:a:microsoft).", is_required=False)
+@app.mcp_tool_property(arg_name="results_per_page", description="Number of results to return per page (1–10000). Defaults to 20.", is_required=False)
+@app.mcp_tool_property(arg_name="start_index", description="Zero-based index of the first result to return, used for pagination. Defaults to 0.", is_required=False)
+def search_cpes(
+    keyword: str = "",
+    cpe_match_string: str = "",
+    results_per_page: int = 20,
+    start_index: int = 0,
+) -> str:
+    """Search for CPE product entries by name or keyword. Use this to find the exact CPE URI needed for search_cves_by_cpe or the cpe_name filter in search_cves."""
+    logging.info(f"search_cpes called: keyword={keyword!r} cpe_match_string={cpe_match_string!r}")
+    try:
+        result = nvd_service.search_cpes(
+            keyword=keyword or None,
+            cpe_match_string=cpe_match_string or None,
+            results_per_page=results_per_page,
+            start_index=start_index,
+        )
+        return json.dumps(result)
+    except urllib.error.HTTPError as e:
+        logging.error(f"search_cpes NVD API error: {e.code} {e.reason}")
+        return json.dumps({"error": "CPE database request failed", "status": e.code})
+    except urllib.error.URLError as e:
+        logging.error(f"search_cpes NVD API unreachable: {e.reason}")
+        return json.dumps({"error": "CPE database unreachable"})
+    except Exception as e:
+        logging.exception("search_cpes unexpected error")
+        return json.dumps({"error": "Internal error"})
+
+
+@app.mcp_tool()
+@app.mcp_tool_property(arg_name="keyword", description="Filter by vendor, product, or vulnerability name (case-insensitive).", is_required=False)
+@app.mcp_tool_property(arg_name="since", description="Only return entries added to KEV on or after this date (YYYY-MM-DD).", is_required=False)
+@app.mcp_tool_property(arg_name="ransomware_only", description="When true, only return entries with a known ransomware campaign association.", is_required=False)
+@app.mcp_tool_property(arg_name="results_per_page", description="Maximum number of entries to return (1–2000). Defaults to 10.", is_required=False)
+def get_kev(
+    keyword: str = "",
+    since: str = "",
+    ransomware_only: bool = False,
+    results_per_page: int = 10,
+) -> str:
+    """Fetch the CISA Known Exploited Vulnerabilities (KEV) catalog live. Returns catalog summary and most recent entries. Filter by keyword, date, or ransomware association."""
+    logging.info(f"get_kev called: keyword={keyword!r} since={since!r} ransomware_only={ransomware_only}")
+    try:
+        catalog = nvd_service.get_kev()
+        vulns = catalog.get("vulnerabilities", [])
+
+        if since:
+            vulns = [v for v in vulns if v.get("dateAdded", "") >= since]
+        if ransomware_only:
+            vulns = [v for v in vulns if v.get("knownRansomwareCampaignUse") == "Known"]
+        if keyword:
+            kw = keyword.lower()
+            vulns = [
+                v for v in vulns
+                if kw in (v.get("vendorProject") or "").lower()
+                or kw in (v.get("product") or "").lower()
+                or kw in (v.get("vulnerabilityName") or "").lower()
+                or kw in (v.get("cveID") or "").lower()
+            ]
+
+        limit = min(max(1, results_per_page), 2000)
+        sorted_vulns = sorted(vulns, key=lambda v: v.get("dateAdded", ""), reverse=True)
+        page = sorted_vulns[:limit]
+        ransomware_count = sum(1 for v in vulns if v.get("knownRansomwareCampaignUse") == "Known")
+
+        return json.dumps({
+            "catalogVersion": catalog.get("catalogVersion"),
+            "dateReleased": catalog.get("dateReleased"),
+            "matched": len(vulns),
+            "ransomwareAssociated": ransomware_count,
+            "showing": len(page),
+            "vulnerabilities": page,
+        })
+    except urllib.error.HTTPError as e:
+        logging.error(f"get_kev CISA fetch error: {e.code} {e.reason}")
+        return json.dumps({"error": "CISA KEV catalog request failed", "status": e.code})
+    except urllib.error.URLError as e:
+        logging.error(f"get_kev CISA unreachable: {e.reason}")
+        return json.dumps({"error": "CISA KEV catalog unreachable"})
+    except Exception as e:
+        logging.exception("get_kev unexpected error")
         return json.dumps({"error": "Internal error"})
