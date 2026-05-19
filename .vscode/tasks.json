@@ -31,6 +31,7 @@
 		},
 		{
 			"type": "func",
+			"label": "func: extensions install",
 			"command": "extensions install",
 			"dependsOn": "pip install (functions)",
 			"options": {
