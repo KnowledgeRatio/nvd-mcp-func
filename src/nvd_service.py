@@ -1,4 +1,4 @@
-﻿"""NVD (National Vulnerability Database) API client service."""
+"""NVD (National Vulnerability Database) API client service."""
 import json
 import logging
 import os
